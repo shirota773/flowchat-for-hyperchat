@@ -42,6 +42,18 @@
       ],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/embed/hyperchat_embed?*"
+      ],
+      "js": [
+        "content/hyperchat-connector.js",
+        "content/flow-controller.js",
+        "content/main.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "action": {

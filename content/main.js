@@ -13,20 +13,25 @@ console.log('[FlowChat] URL:', window.location.href);
     console.log('[FlowChat] Current URL:', window.location.href);
     console.log('[FlowChat] Window context:', window === window.top ? 'TOP WINDOW' : 'IFRAME');
 
-    // コンテキストを判定：live_chat iframe か main page か
-    const isLiveChatFrame = window.location.href.includes('live_chat');
-    const isMainPage = !isLiveChatFrame && (
+    // コンテキストを判定：hyperchat_embed iframe / live_chat iframe / main page
+    const isHyperChatEmbed = window.location.href.includes('/embed/hyperchat_embed');
+    const isLiveChatFrame = !isHyperChatEmbed && window.location.href.includes('live_chat');
+    const isMainPage = !isHyperChatEmbed && !isLiveChatFrame && (
       window.location.href.includes('/watch') ||
       window.location.href.includes('/live/')
     );
 
     console.log('[FlowChat] Context detection:', {
+      isHyperChatEmbed,
       isLiveChatFrame,
       isMainPage,
       url: window.location.href
     });
 
-    if (isLiveChatFrame) {
+    if (isHyperChatEmbed) {
+      console.log('[FlowChat] ✅ Running in hyperchat_embed iframe (HyperChatのメイン描画領域)');
+      await initHyperChatEmbed();
+    } else if (isLiveChatFrame) {
       console.log('[FlowChat] ✅ Running in live_chat iframe');
       await initLiveChatFrame();
     } else if (isMainPage) {
@@ -45,6 +50,62 @@ console.log('[FlowChat] URL:', window.location.href);
 })().catch(error => {
   console.error('[FlowChat] ❌ Unhandled promise rejection:', error);
 });
+
+/**
+ * hyperchat_embed iframe での初期化
+ * HyperChatが実際に描画される場所でメッセージをキャプチャ
+ */
+async function initHyperChatEmbed() {
+  console.log('[FlowChat] 🟣 initHyperChatEmbed() called');
+
+  // HyperChatのルート要素が描画されるのを待つ
+  let attempts = 0;
+  const maxAttempts = 50;
+
+  const waitForHyperChat = async () => {
+    while (attempts < maxAttempts) {
+      const hyperChatRoot = document.querySelector('.hyperchat-root');
+      if (hyperChatRoot) {
+        console.log('[FlowChat] ✅ .hyperchat-root found!');
+        return true;
+      }
+      attempts++;
+      console.log(`[FlowChat] Waiting for .hyperchat-root... (${attempts}/${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false;
+  };
+
+  const found = await waitForHyperChat();
+  if (!found) {
+    console.error('[FlowChat] ❌ .hyperchat-root not found after waiting');
+    return;
+  }
+
+  // HyperChatConnectorを初期化
+  const connector = new HyperChatConnector((messageData) => {
+    console.log('[FlowChat] 📤 Sending message from hyperchat_embed to main page:', messageData);
+
+    // 2階層上（live_chat iframe → main page）にメッセージを送信
+    // window.parent = live_chat iframe
+    // window.parent.parent = main page
+    if (window.parent && window.parent.parent) {
+      window.parent.parent.postMessage({
+        type: 'FLOWCHAT_MESSAGE',
+        data: messageData
+      }, '*');
+    }
+  });
+
+  // 接続を開始
+  console.log('[FlowChat] Starting HyperChatConnector in hyperchat_embed...');
+  await connector.start();
+  console.log('[FlowChat] HyperChatConnector started in hyperchat_embed');
+
+  // グローバルに公開（デバッグ用）
+  window.flowChatConnector = connector;
+  console.log('[FlowChat] window.flowChatConnector is now available in hyperchat_embed');
+}
 
 /**
  * live_chat iframe での初期化
