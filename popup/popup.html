@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowChat for HyperChat - 設定</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 400px;
+      min-height: 500px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+      font-size: 22px;
+      color: #667eea;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .setting-group {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .setting-group:last-child {
+      border-bottom: none;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #555;
+    }
+
+    input[type="range"],
+    input[type="number"],
+    input[type="color"],
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    input[type="range"] {
+      padding: 0;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: #667eea;
+    }
+
+    .value-display {
+      display: inline-block;
+      margin-left: 10px;
+      font-weight: bold;
+      color: #667eea;
+      min-width: 40px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    button.secondary:hover {
+      background: #d0d0d0;
+    }
+
+    .status {
+      text-align: center;
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      display: none;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      display: block;
+    }
+
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      display: block;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚡ FlowChat for HyperChat</h1>
+
+    <div class="setting-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="enabled" checked>
+        <label for="enabled" style="margin:0">フロー表示を有効にする</label>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="fontSize">
+        フォントサイズ: <span class="value-display" id="fontSizeValue">28</span>px
+      </label>
+      <input type="range" id="fontSize" min="16" max="64" value="28" step="2">
+      <div class="range-labels">
+        <span>小</span>
+        <span>大</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="displayTime">
+        表示時間: <span class="value-display" id="displayTimeValue">5</span>秒
+      </label>
+      <input type="range" id="displayTime" min="3" max="15" value="5" step="0.5">
+      <div class="range-labels">
+        <span>速い</span>
+        <span>遅い</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="opacity">
+        透明度: <span class="value-display" id="opacityValue">90</span>%
+      </label>
+      <input type="range" id="opacity" min="0.3" max="1" value="0.9" step="0.1">
+      <div class="range-labels">
+        <span>透明</span>
+        <span>不透明</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="lines">
+        レーン数: <span class="value-display" id="linesValue">12</span>
+      </label>
+      <input type="range" id="lines" min="6" max="24" value="12" step="1">
+      <div class="range-labels">
+        <span>少ない</span>
+        <span>多い</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="maxDisplays">
+        表示制限(1秒あたり): <span class="value-display" id="maxDisplaysValue">10</span>
+      </label>
+      <input type="range" id="maxDisplays" min="0" max="50" value="10" step="5">
+      <div class="range-labels">
+        <span>無制限</span>
+        <span>厳しい</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="fontColor">フォント色</label>
+      <input type="color" id="fontColor" value="#FFFFFF">
+    </div>
+
+    <div class="setting-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="fontShadow" checked>
+        <label for="fontShadow" style="margin:0">テキストに影をつける</label>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="showAuthor">
+        <label for="showAuthor" style="margin:0">作者名を表示</label>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="showAvatar" checked>
+        <label for="showAvatar" style="margin:0">アバターを表示</label>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label for="superChatScale">
+        スーパーチャットの拡大率: <span class="value-display" id="superChatScaleValue">1.5</span>x
+      </label>
+      <input type="range" id="superChatScale" min="1" max="2.5" value="1.5" step="0.1">
+      <div class="range-labels">
+        <span>通常</span>
+        <span>特大</span>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="primary" id="saveButton">保存</button>
+      <button class="secondary" id="resetButton">リセット</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

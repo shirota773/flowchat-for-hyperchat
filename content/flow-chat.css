@@ -1,0 +1,104 @@
+/* FlowChat for HyperChat - スタイル */
+
+.flowchat-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 11; /* 動画の上、コントロールの下 */
+}
+
+.flowchat-message {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.3s ease;
+  will-change: transform;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+}
+
+.flowchat-message img.flowchat-avatar {
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  margin-right: 0.3em;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.flowchat-message .flowchat-author {
+  font-weight: bold;
+  margin-right: 0.3em;
+}
+
+.flowchat-message .flowchat-text {
+  display: inline-block;
+}
+
+.flowchat-message .flowchat-amount {
+  font-weight: bold;
+  margin-left: 0.3em;
+}
+
+/* スーパーチャット用のスタイル */
+.flowchat-message[data-type="superchat"] {
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* スーパーステッカー用のスタイル */
+.flowchat-message[data-type="supersticker"] {
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* メンバーシップ用のスタイル */
+.flowchat-message[data-type="membership"] {
+  border: 2px solid #0f9d58;
+  background-color: rgba(15, 157, 88, 0.2);
+}
+
+/* アニメーションのパフォーマンス最適化 */
+.flowchat-message {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .flowchat-message {
+    font-size: 20px !important;
+  }
+
+  .flowchat-message img.flowchat-avatar {
+    width: 1.2em;
+    height: 1.2em;
+  }
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+  .flowchat-message {
+    /* ダークモードでも見やすいように影を強調 */
+    text-shadow:
+      -2px -2px 4px #000, 2px -2px 4px #000,
+      -2px 2px 4px #000, 2px 2px 4px #000,
+      0 0 6px rgba(0,0,0,0.9) !important;
+  }
+}
+
+/* フルスクリーンモードでの調整 */
+.ytp-fullscreen .flowchat-overlay {
+  position: fixed !important;
+}
