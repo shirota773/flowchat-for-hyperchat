@@ -7,6 +7,53 @@
 
   console.log('[FlowChat] Initializing...');
 
+  // コンテキストを判定：live_chat iframe か main page か
+  const isLiveChatFrame = window.location.href.includes('live_chat');
+  const isMainPage = !isLiveChatFrame && (
+    window.location.href.includes('/watch') ||
+    window.location.href.includes('/live/')
+  );
+
+  if (isLiveChatFrame) {
+    console.log('[FlowChat] Running in live_chat iframe');
+    await initLiveChatFrame();
+  } else if (isMainPage) {
+    console.log('[FlowChat] Running in main page');
+    await initMainPage();
+  } else {
+    console.log('[FlowChat] Skipping initialization (not watch page or live_chat)');
+    return;
+  }
+
+  console.log('[FlowChat] Initialization complete!');
+})();
+
+/**
+ * live_chat iframe での初期化
+ * HyperChatのメッセージを親ウィンドウに転送
+ */
+async function initLiveChatFrame() {
+  // HyperChatConnectorを初期化
+  const connector = new HyperChatConnector((messageData) => {
+    // 親ウィンドウにメッセージを送信
+    window.parent.postMessage({
+      type: 'FLOWCHAT_MESSAGE',
+      data: messageData
+    }, '*');
+  });
+
+  // 接続を開始
+  await connector.start();
+
+  // グローバルに公開（デバッグ用）
+  window.flowChatConnector = connector;
+}
+
+/**
+ * メインページでの初期化
+ * video overlayを作成してiframeからのメッセージを受信
+ */
+async function initMainPage() {
   // FlowControllerを初期化
   const flowController = new FlowController();
   const initialized = await flowController.init();
@@ -16,13 +63,18 @@
     return;
   }
 
-  // HyperChatConnectorを初期化
-  const connector = new HyperChatConnector((messageData) => {
-    // メッセージを受信したらFlowControllerに追加
-    flowController.addMessage(messageData);
+  // live_chat iframeからのメッセージを監視
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'FLOWCHAT_MESSAGE') {
+      console.log('[FlowChat] Received message from iframe:', event.data.data);
+      flowController.addMessage(event.data.data);
+    }
   });
 
-  // 接続を開始
+  // フォールバック：通常のYouTubeチャットも監視（HyperChatが無効の場合）
+  const connector = new HyperChatConnector((messageData) => {
+    flowController.addMessage(messageData);
+  });
   await connector.start();
 
   // タイムラインクリーンアップ（メモリリーク防止）
@@ -37,31 +89,15 @@
     }
   }, 5000);
 
-  // URLが変わったときの処理
+  // URLが変わったときの処理（YouTubeのSPA遷移に対応）
   let lastUrl = location.href;
   new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
-      console.log('[FlowChat] URL changed, reinitializing...');
-
-      // 再初期化
-      setTimeout(async () => {
-        flowController.destroy();
-        connector.destroy();
-
-        const newFlowController = new FlowController();
-        await newFlowController.init();
-
-        const newConnector = new HyperChatConnector((messageData) => {
-          newFlowController.addMessage(messageData);
-        });
-        await newConnector.start();
-
-        // グローバル参照を更新
-        window.flowChatController = newFlowController;
-        window.flowChatConnector = newConnector;
-      }, 1000);
+      console.log('[FlowChat] URL changed, reloading page...');
+      // SPAナビゲーションの場合は単純にリロード
+      location.reload();
     }
   }).observe(document, { subtree: true, childList: true });
 
@@ -74,6 +110,4 @@
   // デバッグ用にグローバルに公開
   window.flowChatController = flowController;
   window.flowChatConnector = connector;
-
-  console.log('[FlowChat] Initialization complete!');
-})();
+}
