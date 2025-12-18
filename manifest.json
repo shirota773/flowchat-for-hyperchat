@@ -18,8 +18,7 @@
     {
       "matches": [
         "https://www.youtube.com/watch?*",
-        "https://www.youtube.com/live/*",
-        "https://www.youtube.com/live_chat*"
+        "https://www.youtube.com/live/*"
       ],
       "js": [
         "content/hyperchat-connector.js",
@@ -28,6 +27,18 @@
       ],
       "css": [
         "content/flow-chat.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/live_chat*"
+      ],
+      "js": [
+        "content/hyperchat-connector.js",
+        "content/flow-controller.js",
+        "content/main.js"
       ],
       "run_at": "document_idle",
       "all_frames": true
