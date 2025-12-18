@@ -1,29 +1,30 @@
 /**
  * HyperChatとの接続を管理するクラス
- * HyperChatが有効な場合はポート経由でメッセージを受信し、
- * 無効な場合は通常のYouTubeチャットDOMを監視する
+ *
+ * HyperChatはwindowイベントでメッセージを配信するため、
+ * chrome.runtime.connect()ではなく、windowイベントリスナーを使用します
  */
 class HyperChatConnector {
   constructor(onMessageCallback) {
     this.onMessageCallback = onMessageCallback;
-    this.port = null;
     this.isHyperChatEnabled = false;
     this.fallbackObserver = null;
     this.processedMessages = new WeakSet();
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.messageEventBound = false;
   }
 
   /**
    * 接続を開始
    */
   async start() {
+    console.log('[FlowChat] HyperChatConnector starting...');
+
     // HyperChatの存在を確認
     const hyperChatDetected = await this.detectHyperChat();
 
     if (hyperChatDetected) {
-      console.log('[FlowChat] HyperChat detected, connecting via port');
-      this.connectToHyperChat();
+      console.log('[FlowChat] HyperChat detected, listening to window events');
+      this.listenToHyperChatEvents();
     } else {
       console.log('[FlowChat] HyperChat not detected, using fallback mode');
       this.startFallbackMode();
@@ -44,170 +45,188 @@ class HyperChatConnector {
       return true;
     }
 
-    // Method 2: チャットフレーム内で確認（iframeコンテキストの場合）
+    // Method 2: HyperChatのボタン要素を探す
+    const hyperChatButton = document.querySelector('[class*="hyperchat"], [id*="hyperchat"]');
+    if (hyperChatButton) {
+      this.isHyperChatEnabled = true;
+      return true;
+    }
+
+    // Method 3: チャットフレーム内で確認
     if (window.location.href.includes('live_chat')) {
-      // HyperChatのカスタム要素を探す
-      const hyperChatElements = document.querySelectorAll('[class*="hyperchat"], [id*="hyperchat"]');
-      if (hyperChatElements.length > 0) {
+      // HyperChatの特徴的な要素を探す
+      const hasHyperChatElements = document.querySelector('#hyperchat') !== null;
+      if (hasHyperChatElements) {
         this.isHyperChatEnabled = true;
         return true;
       }
-    }
-
-    // Method 3: 親ウィンドウでHyperChat iframeを確認
-    try {
-      if (window.parent !== window) {
-        const parentHyperChat = window.parent.document.querySelector('iframe#hyperchat');
-        if (parentHyperChat) {
-          this.isHyperChatEnabled = true;
-          return true;
-        }
-      }
-    } catch (e) {
-      // クロスオリジンの場合はアクセスできない
     }
 
     return false;
   }
 
   /**
-   * HyperChatにポート経由で接続
+   * HyperChatのwindowイベントをリッスン
    */
-  connectToHyperChat() {
+  listenToHyperChatEvents() {
+    if (this.messageEventBound) {
+      return; // 既にバインド済み
+    }
+
+    // HyperChatが発行するmessageReceiveイベントを監視
+    window.addEventListener('messageReceive', (event) => {
+      try {
+        const data = (event as CustomEvent).detail;
+        console.log('[FlowChat] Received messageReceive event from HyperChat');
+        this.processHyperChatData(data);
+      } catch (error) {
+        console.error('[FlowChat] Error processing HyperChat event:', error);
+      }
+    });
+
+    // messageSentイベントも監視（自分が送信したメッセージ）
+    window.addEventListener('messageSent', (event) => {
+      try {
+        const data = (event as CustomEvent).detail;
+        console.log('[FlowChat] Received messageSent event from HyperChat');
+        this.processHyperChatData(data);
+      } catch (error) {
+        console.error('[FlowChat] Error processing HyperChat sent event:', error);
+      }
+    });
+
+    this.messageEventBound = true;
+    console.log('[FlowChat] Now listening to HyperChat window events');
+  }
+
+  /**
+   * HyperChatのデータを処理
+   */
+  processHyperChatData(jsonData) {
     try {
-      // ポートに接続
-      this.port = chrome.runtime.connect({ name: 'flowchat-hyperchat-bridge' });
+      // JSONデータをパース
+      const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
 
-      // メッセージリスナーを設定
-      this.port.onMessage.addListener((message) => {
-        this.handleHyperChatMessage(message);
-      });
+      console.log('[FlowChat] Processing HyperChat data:', data);
 
-      // 切断リスナー
-      this.port.onDisconnect.addListener(() => {
-        console.warn('[FlowChat] Port disconnected from HyperChat');
-        this.port = null;
-
-        // 再接続を試みる
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.reconnectAttempts++;
-          setTimeout(() => {
-            console.log(`[FlowChat] Reconnecting (attempt ${this.reconnectAttempts})...`);
-            this.connectToHyperChat();
-          }, 1000 * this.reconnectAttempts);
-        } else {
-          console.error('[FlowChat] Max reconnection attempts reached, switching to fallback mode');
-          this.startFallbackMode();
-        }
-      });
-
-      // クライアント登録を要求
-      this.port.postMessage({
-        type: 'registerClient',
-        getInitialData: true
-      });
-
-      console.log('[FlowChat] Connected to HyperChat via port');
-      this.reconnectAttempts = 0; // 成功したらリセット
+      // データ構造を解析してメッセージを抽出
+      this.extractMessagesFromData(data);
     } catch (error) {
-      console.error('[FlowChat] Failed to connect to HyperChat:', error);
-      this.startFallbackMode();
+      console.error('[FlowChat] Error parsing HyperChat data:', error);
     }
   }
 
   /**
-   * HyperChatからのメッセージを処理
+   * データからメッセージを抽出
    */
-  handleHyperChatMessage(message) {
-    if (!message) return;
+  extractMessagesFromData(data) {
+    // YouTubeのAPIレスポンス形式を処理
+    const continuation = data?.continuationContents?.liveChatContinuation;
+    const renderer = data?.contents?.liveChatRenderer;
 
-    // メッセージタイプに応じて処理
-    switch (message.type) {
-      case 'registerClientResponse':
-        if (message.success) {
-          console.log('[FlowChat] Successfully registered with HyperChat');
-        } else {
-          console.warn('[FlowChat] Failed to register with HyperChat:', message.failReason);
-          this.startFallbackMode();
-        }
-        break;
+    const base = continuation || renderer;
+    const actions = base?.actions;
 
-      case 'initialData':
-        console.log('[FlowChat] Received initial data from HyperChat');
-        // 初期データの処理（必要に応じて）
-        break;
-
-      case 'action':
-        // メッセージアクションを処理
-        this.processHyperChatAction(message);
-        break;
-
-      case 'themeUpdate':
-        // テーマ更新（必要に応じて）
-        console.log('[FlowChat] Theme updated:', message.dark);
-        break;
-
-      default:
-        console.debug('[FlowChat] Unknown message type:', message.type);
-    }
-  }
-
-  /**
-   * HyperChatのアクションを処理
-   */
-  processHyperChatAction(action) {
-    if (!action.messages || !Array.isArray(action.messages)) {
+    if (!actions || !Array.isArray(actions)) {
       return;
     }
 
-    // 各メッセージを処理
-    action.messages.forEach((parsedMessage) => {
-      if (!parsedMessage) return;
-
-      // FlowChat用のメッセージデータに変換
-      const flowMessage = this.convertHyperChatMessage(parsedMessage);
-      if (flowMessage) {
-        this.onMessageCallback(flowMessage);
+    actions.forEach(action => {
+      try {
+        // 各種アクションタイプを処理
+        if (action.addChatItemAction) {
+          this.processAddChatItemAction(action.addChatItemAction);
+        } else if (action.replayChatItemAction) {
+          const replayActions = action.replayChatItemAction.actions;
+          if (replayActions && Array.isArray(replayActions)) {
+            replayActions.forEach(replayAction => {
+              if (replayAction.addChatItemAction) {
+                this.processAddChatItemAction(replayAction.addChatItemAction);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[FlowChat] Error processing action:', error, action);
       }
     });
   }
 
   /**
-   * HyperChatのメッセージをFlowChat形式に変換
+   * addChatItemActionを処理
    */
-  convertHyperChatMessage(parsedMessage) {
+  processAddChatItemAction(action) {
+    const item = action.item;
+    if (!item) return;
+
+    // 各種レンダラータイプに対応
+    const renderer =
+      item.liveChatTextMessageRenderer ||
+      item.liveChatPaidMessageRenderer ||
+      item.liveChatPaidStickerRenderer ||
+      item.liveChatMembershipItemRenderer;
+
+    if (!renderer) return;
+
+    // メッセージデータを抽出
+    const flowMessage = this.extractFlowMessage(renderer);
+    if (flowMessage) {
+      this.onMessageCallback(flowMessage);
+    }
+  }
+
+  /**
+   * フローメッセージに変換
+   */
+  extractFlowMessage(renderer) {
     try {
-      // メッセージテキストを抽出
+      // 作者情報
+      const author = renderer.authorName?.simpleText || 'Unknown';
+      const avatar = renderer.authorPhoto?.thumbnails?.[0]?.url || '';
+
+      // メッセージテキスト
       let messageText = '';
-      if (parsedMessage.message && Array.isArray(parsedMessage.message)) {
-        messageText = parsedMessage.message
-          .map(run => {
-            if (run.type === 'text') return run.text;
-            if (run.type === 'emoji') return run.alt || '';
-            if (run.type === 'link') return run.text;
-            return '';
-          })
-          .join('');
+      if (renderer.message?.runs) {
+        messageText = renderer.message.runs.map(run => {
+          if (run.text) return run.text;
+          if (run.emoji) return run.emoji.emojiId || '';
+          return '';
+        }).join('');
+      }
+
+      // メッセージタイプを判定
+      let type = 'text';
+      let amount = null;
+      let backgroundColor = null;
+
+      if (renderer.purchaseAmountText) {
+        // スーパーチャットまたはスーパーステッカー
+        type = renderer.sticker ? 'supersticker' : 'superchat';
+        amount = renderer.purchaseAmountText.simpleText;
+
+        if (renderer.headerBackgroundColor) {
+          backgroundColor = '#' + renderer.headerBackgroundColor.toString(16).padStart(6, '0');
+        }
+      } else if (renderer.headerPrimaryText) {
+        type = 'membership';
       }
 
       const flowMessage = {
-        id: parsedMessage.messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: parsedMessage.superChat ? 'superchat' :
-              parsedMessage.superSticker ? 'supersticker' :
-              parsedMessage.membership ? 'membership' : 'text',
-        author: parsedMessage.author?.name || 'Unknown',
+        id: renderer.id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type,
+        author,
         message: messageText,
-        avatar: parsedMessage.author?.profileIcon?.src || '',
-        amount: parsedMessage.superChat?.amount || parsedMessage.superSticker?.amount || null,
-        backgroundColor: parsedMessage.superChat?.headerBackgroundColor ||
-                         parsedMessage.superSticker?.bodyBackgroundColor || null,
+        avatar,
+        amount,
+        backgroundColor,
         timestamp: Date.now(),
-        showtime: parsedMessage.showtime || Date.now(),
+        showtime: Date.now(),
       };
 
+      console.log('[FlowChat] Extracted flow message:', flowMessage);
       return flowMessage;
     } catch (error) {
-      console.error('[FlowChat] Error converting HyperChat message:', error);
+      console.error('[FlowChat] Error extracting flow message:', error);
       return null;
     }
   }
@@ -247,6 +266,9 @@ class HyperChatConnector {
           clearInterval(interval);
         }
       }, 1000);
+
+      // 30秒でタイムアウト
+      setTimeout(() => clearInterval(interval), 30000);
     }
   }
 
@@ -254,6 +276,8 @@ class HyperChatConnector {
    * 通常のYouTubeチャットを監視
    */
   observeStandardChat(container) {
+    console.log('[FlowChat] Observing standard YouTube chat container');
+
     // 既存のメッセージを処理
     this.processExistingMessages(container);
 
@@ -272,10 +296,10 @@ class HyperChatConnector {
 
     this.fallbackObserver.observe(container, {
       childList: true,
-      subtree: true,
+      subtree: false, // 直接の子要素のみ監視
     });
 
-    console.log('[FlowChat] Observing standard YouTube chat');
+    console.log('[FlowChat] Standard YouTube chat observer started');
   }
 
   /**
@@ -288,6 +312,8 @@ class HyperChatConnector {
       'yt-live-chat-paid-sticker-renderer, ' +
       'yt-live-chat-membership-item-renderer'
     );
+
+    console.log(`[FlowChat] Found ${messageElements.length} existing messages`);
 
     messageElements.forEach((element) => {
       if (!this.processedMessages.has(element)) {
@@ -319,16 +345,28 @@ class HyperChatConnector {
       const messageElement = element.querySelector('#message');
       const message = messageElement?.textContent?.trim() || '';
 
+      if (!message) {
+        // メッセージが空の場合はスキップ
+        this.processedMessages.add(element);
+        return;
+      }
+
       const avatarElement = element.querySelector('#author-photo img');
       const avatar = avatarElement?.src || '';
 
       let amount = null;
+      let backgroundColor = null;
+
       if (type === 'superchat') {
         const amountElement = element.querySelector('#purchase-amount');
         amount = amountElement?.textContent?.trim() || null;
-      }
 
-      const backgroundColor = window.getComputedStyle(element).backgroundColor;
+        // 背景色を取得
+        const headerElement = element.querySelector('#header');
+        if (headerElement) {
+          backgroundColor = window.getComputedStyle(headerElement).backgroundColor;
+        }
+      }
 
       const flowMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -343,6 +381,7 @@ class HyperChatConnector {
       };
 
       this.processedMessages.add(element);
+      console.log('[FlowChat] Processed standard message:', flowMessage);
       this.onMessageCallback(flowMessage);
     } catch (error) {
       console.error('[FlowChat] Error processing standard message:', error);
@@ -356,17 +395,16 @@ class HyperChatConnector {
     const hyperChatEnabled = await this.detectHyperChat();
 
     // 状態が変わった場合
-    if (hyperChatEnabled && !this.isHyperChatEnabled && !this.port) {
+    if (hyperChatEnabled && !this.isHyperChatEnabled) {
       console.log('[FlowChat] HyperChat became available, switching from fallback mode');
       if (this.fallbackObserver) {
         this.fallbackObserver.disconnect();
         this.fallbackObserver = null;
       }
-      this.connectToHyperChat();
-    } else if (!hyperChatEnabled && this.isHyperChatEnabled && this.port) {
+      this.listenToHyperChatEvents();
+    } else if (!hyperChatEnabled && this.isHyperChatEnabled && !this.fallbackObserver) {
       console.log('[FlowChat] HyperChat became unavailable, switching to fallback mode');
-      this.port.disconnect();
-      this.port = null;
+      this.messageEventBound = false;
       this.startFallbackMode();
     }
 
@@ -377,14 +415,11 @@ class HyperChatConnector {
    * クリーンアップ
    */
   destroy() {
-    if (this.port) {
-      this.port.disconnect();
-      this.port = null;
-    }
     if (this.fallbackObserver) {
       this.fallbackObserver.disconnect();
       this.fallbackObserver = null;
     }
+    this.messageEventBound = false;
   }
 }
 
