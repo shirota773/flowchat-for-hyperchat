@@ -1,3 +1,5 @@
+console.log('[FlowChat] ✅ flow-controller.js loaded');
+
 /**
  * チャットメッセージのフロー表示を制御するクラス
  * youtube-live-chat-flowのFlowControllerを参考にした実装

@@ -1,3 +1,5 @@
+console.log('[FlowChat] ✅ hyperchat-connector.js loaded');
+
 /**
  * HyperChatとの接続を管理するクラス
  *

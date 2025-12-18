@@ -1,3 +1,6 @@
+console.log('[FlowChat] ✅ main.js loaded at', new Date().toISOString());
+console.log('[FlowChat] URL:', window.location.href);
+
 /**
  * FlowChat for HyperChat - メインエントリーポイント
  */
@@ -5,36 +8,43 @@
 (async function() {
   'use strict';
 
-  console.log('[FlowChat] Initializing...');
-  console.log('[FlowChat] Current URL:', window.location.href);
-  console.log('[FlowChat] Window context:', window === window.top ? 'TOP WINDOW' : 'IFRAME');
+  try {
+    console.log('[FlowChat] Initializing...');
+    console.log('[FlowChat] Current URL:', window.location.href);
+    console.log('[FlowChat] Window context:', window === window.top ? 'TOP WINDOW' : 'IFRAME');
 
-  // コンテキストを判定：live_chat iframe か main page か
-  const isLiveChatFrame = window.location.href.includes('live_chat');
-  const isMainPage = !isLiveChatFrame && (
-    window.location.href.includes('/watch') ||
-    window.location.href.includes('/live/')
-  );
+    // コンテキストを判定：live_chat iframe か main page か
+    const isLiveChatFrame = window.location.href.includes('live_chat');
+    const isMainPage = !isLiveChatFrame && (
+      window.location.href.includes('/watch') ||
+      window.location.href.includes('/live/')
+    );
 
-  console.log('[FlowChat] Context detection:', {
-    isLiveChatFrame,
-    isMainPage,
-    url: window.location.href
-  });
+    console.log('[FlowChat] Context detection:', {
+      isLiveChatFrame,
+      isMainPage,
+      url: window.location.href
+    });
 
-  if (isLiveChatFrame) {
-    console.log('[FlowChat] ✅ Running in live_chat iframe');
-    await initLiveChatFrame();
-  } else if (isMainPage) {
-    console.log('[FlowChat] ✅ Running in main page');
-    await initMainPage();
-  } else {
-    console.log('[FlowChat] ⏭️  Skipping initialization (not watch page or live_chat)');
-    return;
+    if (isLiveChatFrame) {
+      console.log('[FlowChat] ✅ Running in live_chat iframe');
+      await initLiveChatFrame();
+    } else if (isMainPage) {
+      console.log('[FlowChat] ✅ Running in main page');
+      await initMainPage();
+    } else {
+      console.log('[FlowChat] ⏭️  Skipping initialization (not watch page or live_chat)');
+      return;
+    }
+
+    console.log('[FlowChat] ✅ Initialization complete!');
+  } catch (error) {
+    console.error('[FlowChat] ❌ Fatal error during initialization:', error);
+    console.error('[FlowChat] Error stack:', error.stack);
   }
-
-  console.log('[FlowChat] ✅ Initialization complete!');
-})();
+})().catch(error => {
+  console.error('[FlowChat] ❌ Unhandled promise rejection:', error);
+});
 
 /**
  * live_chat iframe での初期化
