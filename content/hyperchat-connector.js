@@ -76,7 +76,7 @@ class HyperChatConnector {
     // HyperChatが発行するmessageReceiveイベントを監視
     window.addEventListener('messageReceive', (event) => {
       try {
-        const data = (event as CustomEvent).detail;
+        const data = event.detail;
         console.log('[FlowChat] Received messageReceive event from HyperChat');
         this.processHyperChatData(data);
       } catch (error) {
@@ -87,7 +87,7 @@ class HyperChatConnector {
     // messageSentイベントも監視（自分が送信したメッセージ）
     window.addEventListener('messageSent', (event) => {
       try {
-        const data = (event as CustomEvent).detail;
+        const data = event.detail;
         console.log('[FlowChat] Received messageSent event from HyperChat');
         this.processHyperChatData(data);
       } catch (error) {
