@@ -38,28 +38,18 @@ class HyperChatConnector {
    * HyperChatが有効かどうかを検出
    */
   async detectHyperChat() {
-    // Method 1: HyperChat iframe の確認
-    const hyperChatIframe = document.querySelector('iframe#hyperchat');
-    if (hyperChatIframe) {
+    // HyperChatのルート要素を探す（最も確実な方法）
+    const hyperChatRoot = document.querySelector('.hyperchat-root');
+    if (hyperChatRoot) {
       this.isHyperChatEnabled = true;
       return true;
     }
 
-    // Method 2: HyperChatのボタン要素を探す
-    const hyperChatButton = document.querySelector('[class*="hyperchat"], [id*="hyperchat"]');
-    if (hyperChatButton) {
+    // Svelteコンポーネントの存在を確認（バックアップ）
+    const hyperchatComponent = document.querySelector('[class*="hyperchat"]');
+    if (hyperchatComponent && window.location.href.includes('live_chat')) {
       this.isHyperChatEnabled = true;
       return true;
-    }
-
-    // Method 3: チャットフレーム内で確認
-    if (window.location.href.includes('live_chat')) {
-      // HyperChatの特徴的な要素を探す
-      const hasHyperChatElements = document.querySelector('#hyperchat') !== null;
-      if (hasHyperChatElements) {
-        this.isHyperChatEnabled = true;
-        return true;
-      }
     }
 
     return false;
